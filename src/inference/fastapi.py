@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.db.session import check_database_connection, close_database, get_session_factory
 from src.inference.config import InferenceSettings
+from src.inference.on_demand_training import OnDemandModelTrainer, TrainingRequest, TrainingResponse
 from src.inference.schemas import (
     HealthResponse,
     HistoricalPredictionResponse,
@@ -41,10 +42,16 @@ async def lifespan(app: FastAPI):
     service = InferenceService(settings=settings, logger=logger, session_factory=session_factory)
     available_symbols = service.warmup()
     await service.sync_registry()
+    
+    # Initialize on-demand trainer
+    on_demand_trainer = OnDemandModelTrainer(models_dir="models", metadata_dir="metadata")
+    
     app.state.settings = settings
     app.state.inference_service = service
+    app.state.on_demand_trainer = on_demand_trainer
     app.state.session_factory = session_factory
     logger.info("Inference service startup complete. Available models: %s", available_symbols or "none")
+    logger.info("On-demand training service initialized")
     try:
         yield
     finally:
@@ -68,6 +75,10 @@ app.add_middleware(
 
 def get_inference_service() -> InferenceService:
     return app.state.inference_service
+
+
+def get_on_demand_trainer() -> OnDemandModelTrainer:
+    return app.state.on_demand_trainer
 
 
 def translate_error(exc: InferenceServiceError) -> HTTPException:
@@ -175,3 +186,93 @@ async def predict_signal(
         )
     except InferenceServiceError as exc:
         raise translate_error(exc) from exc
+
+
+# =====================================================================
+# ON-DEMAND TRAINING ENDPOINTS
+# =====================================================================
+
+
+@app.post("/train", response_model=TrainingResponse, tags=["training"])
+async def train_on_demand(
+    request: TrainingRequest,
+    trainer: OnDemandModelTrainer = Depends(get_on_demand_trainer),
+) -> TrainingResponse:
+    """
+    Train a new MLP model for any stock ticker on-demand.
+    
+    This endpoint:
+    1. Fetches last N days (default 15) of OHLCV data
+    2. Engineers technical indicator features
+    3. Trains an MLP neural network
+    4. Saves model artifacts
+    5. Returns prediction for next trading day
+    
+    Parameters:
+    -----------
+    ticker : str
+        Stock ticker symbol (e.g., "AAPL", "NVDA", "TATAMOTORS.BO")
+    days : int
+        Number of trading days of historical data (default 15, range 5-252)
+    retrain : bool
+        Force retrain even if model exists (default False)
+    
+    Returns:
+    --------
+    TrainingResponse
+        Training status, metrics, and next-day prediction
+    
+    Example:
+    --------
+    POST /train
+    {
+        "ticker": "AAPL",
+        "days": 15,
+        "retrain": false
+    }
+    """
+    return await trainer.train_async(request)
+
+
+@app.get("/train/models", tags=["training"])
+async def list_trained_models() -> dict:
+    """List all on-demand trained models."""
+    from pathlib import Path
+    
+    models_dir = Path("models")
+    if not models_dir.exists():
+        return {"models": [], "count": 0}
+    
+    model_files = list(models_dir.glob("mlp_model_*.pkl"))
+    model_names = [f.stem.replace("mlp_model_", "") for f in model_files]
+    
+    return {
+        "models": sorted(model_names),
+        "count": len(model_names),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/train/models/{ticker}", tags=["training"])
+async def get_trained_model_info(ticker: str) -> dict:
+    """Get metadata for a trained model."""
+    from pathlib import Path
+    import json
+    
+    metadata_file = Path("metadata") / f"mlp_model_stats_{ticker}.json"
+    
+    if not metadata_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No trained model metadata found for {ticker}",
+        )
+    
+    try:
+        with open(metadata_file, "r") as f:
+            metadata = json.load(f)
+        return metadata
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load model metadata: {str(e)}",
+        )

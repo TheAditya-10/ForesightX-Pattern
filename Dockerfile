@@ -5,9 +5,9 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app/ForesightX-pattern
 
-COPY ForesightX-pattern/requirements.txt /app/ForesightX-pattern/requirements.txt
+COPY ForesightX-pattern/requirements.service.txt /app/ForesightX-pattern/requirements.service.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.service.txt
 
 COPY ForesightX-pattern /app/ForesightX-pattern
 
