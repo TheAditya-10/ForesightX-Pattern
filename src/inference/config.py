@@ -4,6 +4,12 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
 
 def _parse_csv(value: str | None, default: list[str]) -> list[str]:
     if not value:
@@ -18,15 +24,19 @@ class InferenceSettings:
     host: str = field(default_factory=lambda: os.getenv("PATTERN_HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.getenv("PATTERN_PORT", "8003")))
     log_level: str = field(default_factory=lambda: os.getenv("PATTERN_LOG_LEVEL", "INFO"))
+    database_url: str = field(
+        default_factory=lambda: os.getenv(
+            "PATTERN_DATABASE_URL",
+            "postgresql+asyncpg://postgres:postgres@localhost:5432/foresightx_pattern",
+        )
+    )
     cors_origins: list[str] = field(
         default_factory=lambda: _parse_csv(
             os.getenv("PATTERN_CORS_ORIGINS"),
             ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
         )
     )
-    project_root: Path = field(
-        default_factory=lambda: Path(os.getenv("PATTERN_PROJECT_ROOT", Path(__file__).resolve().parents[2]))
-    )
+    project_root: Path = field(default_factory=lambda: Path(os.getenv("PATTERN_PROJECT_ROOT", PROJECT_ROOT)))
 
     @property
     def models_dir(self) -> Path:

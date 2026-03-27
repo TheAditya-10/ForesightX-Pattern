@@ -3,13 +3,19 @@ from __future__ import annotations
 import json
 import logging
 import pickle
+from datetime import timezone
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.db.models import ModelRegistryEntry, PredictionJob
 from src.inference.config import InferenceSettings
 from src.inference.schemas import (
     HistoricalPredictionPoint,
@@ -33,9 +39,15 @@ class LoadedArtifacts:
 
 
 class InferenceService:
-    def __init__(self, settings: InferenceSettings, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self,
+        settings: InferenceSettings,
+        logger: logging.Logger | None = None,
+        session_factory: async_sessionmaker[AsyncSession] | None = None,
+    ) -> None:
         self.settings = settings
         self.logger = logger or logging.getLogger(settings.service_name)
+        self.session_factory = session_factory
         self._artifact_cache: dict[str, LoadedArtifacts] = {}
 
     def list_available_symbols(self) -> list[str]:
@@ -73,7 +85,14 @@ class InferenceService:
             metadata_file=str(paths["metadata"]),
         )
 
-    def predict_latest(self, symbol: str, as_of_date: datetime | None = None) -> PredictionResponse:
+    async def predict_latest(self, symbol: str, as_of_date: datetime | None = None) -> PredictionResponse:
+        prediction = self._predict_latest_core(symbol, as_of_date=as_of_date)
+        prediction_id = await self._persist_prediction(prediction)
+        if prediction_id is not None:
+            return prediction.model_copy(update={"prediction_id": prediction_id})
+        return prediction
+
+    def _predict_latest_core(self, symbol: str, as_of_date: datetime | None = None) -> PredictionResponse:
         artifacts = self._load_artifacts(symbol)
         metadata = artifacts.metadata
         feature_names = metadata.get("feature_names", [])
@@ -136,6 +155,47 @@ class InferenceService:
         for symbol in symbols:
             self._load_artifacts(symbol)
         return symbols
+
+    async def sync_registry(self) -> None:
+        if self.session_factory is None:
+            return
+
+        async with self.session_factory() as session:
+            for symbol in self.list_available_symbols():
+                detail = self.get_model_detail(symbol)
+                artifact_key = self._artifact_key(detail.symbol, detail.model_timestamp, detail.metadata_file)
+                statement = insert(ModelRegistryEntry).values(
+                    {
+                        "symbol": detail.symbol,
+                        "artifact_key": artifact_key,
+                        "model_type": detail.model_type,
+                        "features_count": detail.features_count,
+                        "model_timestamp": detail.model_timestamp,
+                        "metrics": detail.metrics,
+                        "feature_names": detail.feature_names,
+                        "model_file": detail.model_file,
+                        "scaler_file": detail.scaler_file,
+                        "metadata_file": detail.metadata_file,
+                        "is_active": True,
+                    }
+                )
+                statement = statement.on_conflict_do_update(
+                    index_elements=["artifact_key"],
+                    set_={
+                        "symbol": statement.excluded.symbol,
+                        "model_type": statement.excluded.model_type,
+                        "features_count": statement.excluded.features_count,
+                        "model_timestamp": statement.excluded.model_timestamp,
+                        "metrics": statement.excluded.metrics,
+                        "feature_names": statement.excluded.feature_names,
+                        "model_file": statement.excluded.model_file,
+                        "scaler_file": statement.excluded.scaler_file,
+                        "metadata_file": statement.excluded.metadata_file,
+                        "is_active": True,
+                    },
+                )
+                await session.execute(statement)
+            await session.commit()
 
     def _artifact_paths(self, symbol: str) -> dict[str, Path]:
         normalized = symbol.strip().upper()
@@ -219,3 +279,61 @@ class InferenceService:
             if isinstance(value, (int, float, str)):
                 coerced[str(key)] = value
         return coerced
+
+    async def _persist_prediction(self, prediction: PredictionResponse) -> str | None:
+        if self.session_factory is None:
+            return None
+
+        signal_label, signal_confidence = self._signal_from_prediction(prediction.predicted_return)
+        model_entry_id = await self._get_model_entry_id(prediction.symbol, prediction.model_timestamp)
+        async with self.session_factory() as session:
+            job = PredictionJob(
+                symbol=prediction.symbol,
+                model_registry_entry_id=model_entry_id,
+                requested_as_of_date=self._normalize_datetime(prediction.as_of_date),
+                status="completed",
+                predicted_return=prediction.predicted_return,
+                predicted_direction=prediction.predicted_direction,
+                latest_close=prediction.latest_close,
+                predicted_next_close=prediction.predicted_next_close,
+                signal_label=signal_label,
+                signal_confidence=signal_confidence,
+                completed_at=datetime.now(timezone.utc),
+            )
+            session.add(job)
+            await session.commit()
+            return str(job.id)
+
+    async def _get_model_entry_id(self, symbol: str, model_timestamp: datetime | None):
+        if self.session_factory is None:
+            return None
+        async with self.session_factory() as session:
+            statement = (
+                select(ModelRegistryEntry.id)
+                .where(ModelRegistryEntry.symbol == symbol)
+                .order_by(ModelRegistryEntry.model_timestamp.desc().nullslast(), ModelRegistryEntry.created_at.desc())
+                .limit(1)
+            )
+            if model_timestamp is not None:
+                statement = statement.where(ModelRegistryEntry.model_timestamp == model_timestamp)
+            return await session.scalar(statement)
+
+    @staticmethod
+    def _artifact_key(symbol: str, model_timestamp: datetime | None, metadata_file: str) -> str:
+        raw = f"{symbol}|{model_timestamp.isoformat() if model_timestamp else ''}|{metadata_file}"
+        return sha256(raw.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _signal_from_prediction(predicted_return: float) -> tuple[str, float]:
+        magnitude = abs(predicted_return)
+        if magnitude < 0.0025:
+            return "neutral", 0.5
+        label = "bullish" if predicted_return > 0 else "bearish"
+        confidence = min(0.55 + magnitude * 25, 0.95)
+        return label, round(confidence, 4)
+
+    @staticmethod
+    def _normalize_datetime(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)

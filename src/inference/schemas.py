@@ -18,6 +18,7 @@ class PredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
+    prediction_id: str | None = None
     symbol: str
     as_of_date: datetime
     predicted_return: float
@@ -27,6 +28,21 @@ class PredictionResponse(BaseModel):
     model_type: str
     model_timestamp: datetime | None = None
     features_used: int
+
+
+class SignalPredictionRequest(BaseModel):
+    ticker: str = Field(..., min_length=1, max_length=32)
+    as_of_date: datetime | None = None
+
+
+class SignalPredictionResponse(BaseModel):
+    prediction_id: str | None = None
+    symbol: str
+    prediction: str
+    confidence: float = Field(..., ge=0, le=1)
+    predicted_return: float
+    latest_close: float
+    predicted_next_close: float
 
 
 class ModelSummary(BaseModel):

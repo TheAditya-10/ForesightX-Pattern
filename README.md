@@ -15,6 +15,7 @@ The serving layer is intentionally separated from the ML pipeline:
 - It does not retrain models.
 - It does not rewrite the feature pipeline.
 - It consumes already-generated artifacts and exposes them through API endpoints.
+- It now persists model-registry metadata and inference jobs in its own PostgreSQL schema.
 
 That keeps the microservice stable while preserving the data-science workflow.
 
@@ -27,6 +28,14 @@ pip install -r requirements.txt
 uvicorn src.inference.fastapi:app --reload --host 0.0.0.0 --port 8003
 ```
 
+This service reads local configuration from `ForesightX-pattern/.env`.
+
+Before first startup:
+
+```bash
+alembic upgrade head
+```
+
 ## Available Endpoints
 
 - `GET /health/live`
@@ -35,7 +44,13 @@ uvicorn src.inference.fastapi:app --reload --host 0.0.0.0 --port 8003
 - `GET /models/{symbol}`
 - `GET /predictions/{symbol}/latest`
 - `POST /predictions/latest`
+- `POST /predict`
 - `GET /predictions/{symbol}/history`
+
+Schema ownership:
+
+- `model_registry_entries`: serving metadata for available model artifacts
+- `prediction_jobs`: one row per inference request/result served by the API
 
 ## Current Limitation
 

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.db.session import check_database_connection, close_database, get_session_factory
 from src.inference.config import InferenceSettings
 from src.inference.schemas import (
     HealthResponse,
@@ -15,6 +16,8 @@ from src.inference.schemas import (
     ModelListResponse,
     PredictionRequest,
     PredictionResponse,
+    SignalPredictionRequest,
+    SignalPredictionResponse,
 )
 from src.inference.service import InferenceService, InferenceServiceError
 
@@ -33,12 +36,19 @@ logger = logging.getLogger(settings.service_name)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    service = InferenceService(settings=settings, logger=logger)
+    session_factory = get_session_factory(settings.database_url)
+    await check_database_connection(settings.database_url)
+    service = InferenceService(settings=settings, logger=logger, session_factory=session_factory)
     available_symbols = service.warmup()
+    await service.sync_registry()
     app.state.settings = settings
     app.state.inference_service = service
+    app.state.session_factory = session_factory
     logger.info("Inference service startup complete. Available models: %s", available_symbols or "none")
-    yield
+    try:
+        yield
+    finally:
+        await close_database()
 
 
 app = FastAPI(
@@ -118,7 +128,7 @@ async def predict_latest(
     service: InferenceService = Depends(get_inference_service),
 ) -> PredictionResponse:
     try:
-        return service.predict_latest(symbol, as_of_date=as_of_date)
+        return await service.predict_latest(symbol, as_of_date=as_of_date)
     except InferenceServiceError as exc:
         raise translate_error(exc) from exc
 
@@ -129,7 +139,7 @@ async def predict_latest_post(
     service: InferenceService = Depends(get_inference_service),
 ) -> PredictionResponse:
     try:
-        return service.predict_latest(payload.symbol, as_of_date=payload.as_of_date)
+        return await service.predict_latest(payload.symbol, as_of_date=payload.as_of_date)
     except InferenceServiceError as exc:
         raise translate_error(exc) from exc
 
@@ -142,5 +152,26 @@ async def prediction_history(
 ) -> HistoricalPredictionResponse:
     try:
         return service.get_prediction_history(symbol, limit=limit)
+    except InferenceServiceError as exc:
+        raise translate_error(exc) from exc
+
+
+@app.post("/predict", response_model=SignalPredictionResponse, tags=["predictions"])
+async def predict_signal(
+    payload: SignalPredictionRequest,
+    service: InferenceService = Depends(get_inference_service),
+) -> SignalPredictionResponse:
+    try:
+        prediction = await service.predict_latest(payload.ticker, as_of_date=payload.as_of_date)
+        signal_label, signal_confidence = service._signal_from_prediction(prediction.predicted_return)
+        return SignalPredictionResponse(
+            prediction_id=prediction.prediction_id,
+            symbol=prediction.symbol,
+            prediction=signal_label,
+            confidence=signal_confidence,
+            predicted_return=prediction.predicted_return,
+            latest_close=prediction.latest_close,
+            predicted_next_close=prediction.predicted_next_close,
+        )
     except InferenceServiceError as exc:
         raise translate_error(exc) from exc
