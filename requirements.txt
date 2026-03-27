@@ -117,3 +117,7 @@ dvc-s3==3.0.0
 # MLflow & Experiment Tracking
 mlflow==2.9.2
 dagshub==0.3.14
+
+# API Serving
+fastapi==0.115.11
+uvicorn[standard]==0.34.0

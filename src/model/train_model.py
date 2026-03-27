@@ -33,7 +33,6 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, project_root)
 
 from src.services.logger import get_logger, log_function_call
-from src.services.dagshub_service import DagsHubService
 
 
 # =====================================================================
@@ -75,29 +74,13 @@ class MLPModelTrainer:
         self.model_config = self.config.get('models', {}).get('mlp', {})
         self.data_config = self.config.get('data_ingestion', {})
         
-        # DagsHub Configuration
-        self.dagshub_config = self.config.get('dagshub_storage', {})
-        self.dagshub_service = None
-        self.dagshub_enabled = False
-        
-        # Initialize DagsHub if configured
-        if self.dagshub_config.get('enabled', False):
-            try:
-                self.dagshub_service = DagsHubService()
-                if self.dagshub_service.test_connection():
-                    self.dagshub_enabled = True
-                    self.logger.info("DagsHub storage initialized successfully")
-                else:
-                    self.logger.warning("DagsHub connection test failed - using local storage only")
-            except Exception as e:
-                self.logger.info(f"DagsHub not configured: {str(e)} - using local storage only")
-        
-        # Model and scaler
+# Model and scaler
         self.model = None
         self.scaler = None
         self.feature_names = None
         
         self.logger.info("MLPModelTrainer initialized successfully")
+        self.logger.info("Note: Files saved locally. Use 'dvc push' to upload to DagsHub storage")
     
     @log_function_call
     def _load_config(self):
@@ -417,38 +400,11 @@ class MLPModelTrainer:
             self.logger.info(f"Scaler saved: {scaler_file}")
             self.logger.info(f"Metadata saved: {metadata_file}")
             
-            # Upload to DagsHub if enabled
-            dagshub_uploaded = False
-            if self.dagshub_config.get('upload_models', False) and self.dagshub_enabled and self.dagshub_service:
-                try:
-                    dagshub_models_path = self.dagshub_config.get('paths', {}).get('models', 'models/')
-                    
-                    # Upload files
-                    dagshub_model_path = dagshub_models_path + f'mlp_model_{symbol}.pkl'
-                    dagshub_scaler_path = dagshub_models_path + f'mlp_scaler_{symbol}.pkl'
-                    dagshub_metadata_path = 'metadata/' + f'mlp_model_stats_{symbol}.json'
-                    
-                    if self.dagshub_service.upload_file(model_file, dagshub_model_path):
-                        self.logger.info(f"Model uploaded to DagsHub: {dagshub_model_path}")
-                    
-                    if self.dagshub_service.upload_file(scaler_file, dagshub_scaler_path):
-                        self.logger.info(f"Scaler uploaded to DagsHub: {dagshub_scaler_path}")
-                    
-                    if self.dagshub_service.upload_file(metadata_file, dagshub_metadata_path):
-                        self.logger.info(f"Metadata uploaded to DagsHub: {dagshub_metadata_path}")
-                    
-                    dagshub_uploaded = True
-                except Exception as e:
-                    self.logger.warning(f"DagsHub upload failed: {str(e)} - models saved locally only")
-            elif self.dagshub_config.get('upload_models', False):
-                self.logger.info("DagsHub upload requested but not configured - models saved locally only")
-            
             return {
                 'success': True,
                 'model_file': model_file,
                 'scaler_file': scaler_file,
-                'metadata_file': metadata_file,
-                'dagshub_uploaded': dagshub_uploaded
+                'metadata_file': metadata_file
             }
             
         except Exception as e:
@@ -515,8 +471,7 @@ class MLPModelTrainer:
                 'duration_seconds': duration,
                 'model_file': save_result['model_file'],
                 'scaler_file': save_result['scaler_file'],
-                'metadata_file': save_result['metadata_file'],
-                's3_uploaded': save_result['s3_uploaded']
+                'metadata_file': save_result['metadata_file']
             }
             
             self.logger.info("="*70)

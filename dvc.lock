@@ -5,34 +5,33 @@ stages:
     deps:
     - path: src/data/make_dataset.py
       hash: md5
-      md5: 76b2dc77df8ea58f34d891ff6ccd65ac
-      size: 21042
+      md5: c15c5bf36bf65d521ed67023eac0821b
+      size: 19756
     - path: src/services/logger.py
       hash: md5
       md5: 3a571d672a3ea9d7531edf517f93e80d
       size: 6927
     params:
       params.yaml:
-        data_ingestion.end_date: '2025-12-20'
         data_ingestion.source: yfinance
         data_ingestion.start_date: '2015-01-01'
         data_ingestion.stock_symbol: NVDA
     outs:
     - path: data/raw/stock_data_raw_NVDA.csv
       hash: md5
-      md5: f4c5422a505c31a1e1d6980dedeb587b
-      size: 325740
+      md5: 50e8beec9c5ec7a18b29a9442848fcc6
+      size: 325785
   data_preprocessing:
     cmd: python src/data/preprocess.py
     deps:
     - path: data/raw/stock_data_raw_NVDA.csv
       hash: md5
-      md5: f4c5422a505c31a1e1d6980dedeb587b
-      size: 325740
+      md5: 50e8beec9c5ec7a18b29a9442848fcc6
+      size: 325785
     - path: src/data/preprocess.py
       hash: md5
-      md5: 7c5b8252a97aaaa5f622492bb43b439a
-      size: 25662
+      md5: ca82377127c6770d4cdf3009d6dadf4c
+      size: 24022
     params:
       params.yaml:
         data_ingestion.stock_symbol: NVDA
@@ -43,27 +42,27 @@ stages:
     outs:
     - path: data/processed/test_data_NVDA.csv
       hash: md5
-      md5: e43d6d0e702dc4d3f87acf0a197f3950
-      size: 81149
+      md5: 3eb7595f03855268b34af125077b2497
+      size: 81136
     - path: data/processed/train_data_NVDA.csv
       hash: md5
-      md5: 305c5d4a1e2fd80dbd48d5d4c1dfbc31
-      size: 243565
+      md5: 2490d9ed2ebcc53afbca3b13d3fc4505
+      size: 243644
   feature_engineering:
     cmd: python src/features/build_features.py
     deps:
     - path: data/processed/test_data_NVDA.csv
       hash: md5
-      md5: e43d6d0e702dc4d3f87acf0a197f3950
-      size: 81149
+      md5: 3eb7595f03855268b34af125077b2497
+      size: 81136
     - path: data/processed/train_data_NVDA.csv
       hash: md5
-      md5: 305c5d4a1e2fd80dbd48d5d4c1dfbc31
-      size: 243565
+      md5: 2490d9ed2ebcc53afbca3b13d3fc4505
+      size: 243644
     - path: src/features/build_features.py
       hash: md5
-      md5: d921847cdda254c20ccfd772ed4476ae
-      size: 34728
+      md5: 224339cd49fd156f871ae12d861c3fba
+      size: 32539
     params:
       params.yaml:
         data_ingestion.stock_symbol: NVDA
@@ -112,21 +111,21 @@ stages:
     outs:
     - path: data/features
       hash: md5
-      md5: dd5daa17edb295d18a655569b875d08f.dir
-      size: 3349325
+      md5: 7eb8148340945a77c59a3e300f3ced3d.dir
+      size: 3351645
       nfiles: 1
   train_model:
     cmd: python src/model/train_model.py
     deps:
     - path: data/features
       hash: md5
-      md5: dd5daa17edb295d18a655569b875d08f.dir
-      size: 3349325
+      md5: 7eb8148340945a77c59a3e300f3ced3d.dir
+      size: 3351645
       nfiles: 1
     - path: src/model/train_model.py
       hash: md5
-      md5: 82308bfae144761a87cbae0d50a0a737
-      size: 21070
+      md5: 20b117c664399a79b482e28acb2d66d3
+      size: 18650
     params:
       params.yaml:
         data_ingestion.stock_symbol: NVDA
@@ -146,26 +145,26 @@ stages:
     outs:
     - path: models
       hash: md5
-      md5: 4c0f3620eee749e9a394d6ac484c559e.dir
-      size: 505916
+      md5: f854a1f2fbecfa2cf23a896d5f843ef4.dir
+      size: 505918
       nfiles: 2
   evaluate_model:
     cmd: python src/model/evaluate_model.py
     deps:
     - path: data/features
       hash: md5
-      md5: dd5daa17edb295d18a655569b875d08f.dir
-      size: 3349325
+      md5: 7eb8148340945a77c59a3e300f3ced3d.dir
+      size: 3351645
       nfiles: 1
     - path: models
       hash: md5
-      md5: 4c0f3620eee749e9a394d6ac484c559e.dir
-      size: 505916
+      md5: f854a1f2fbecfa2cf23a896d5f843ef4.dir
+      size: 505918
       nfiles: 2
     - path: src/model/evaluate_model.py
       hash: md5
-      md5: 29a28c45e76c90be5a97ca0636a89a01
-      size: 28377
+      md5: b3789509834fc7d3db37efa3d9337350
+      size: 26426
     params:
       params.yaml:
         data_ingestion.stock_symbol: NVDA
@@ -183,26 +182,26 @@ stages:
     outs:
     - path: results
       hash: md5
-      md5: ddce4248c1ba1e46f05cf8370dfb0c95.dir
-      size: 50679
+      md5: 9dee7570621389d36f5250e672f54465.dir
+      size: 50706
       nfiles: 2
   register_model:
     cmd: python src/model/model_registry.py
     deps:
     - path: metadata
       hash: md5
-      md5: f00fa1a7f442e3eef046097a17c8983f.dir
-      size: 36247
+      md5: 0a7aa5465b39860f65f04e918ddbe5fb.dir
+      size: 36249
       nfiles: 19
     - path: models
       hash: md5
-      md5: 4c0f3620eee749e9a394d6ac484c559e.dir
-      size: 505916
+      md5: f854a1f2fbecfa2cf23a896d5f843ef4.dir
+      size: 505918
       nfiles: 2
     - path: src/model/model_registry.py
       hash: md5
-      md5: 2180f3433b1fedd615614ede0f1215fa
-      size: 24826
+      md5: 117c855b28eb88b6d08bd526256e461f
+      size: 24922
     params:
       params.yaml:
         data_ingestion.stock_symbol: NVDA

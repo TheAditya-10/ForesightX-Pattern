@@ -14,7 +14,7 @@ stages:
     params:
       - data_ingestion.stock_symbol
       - data_ingestion.start_date
-      - data_ingestion.end_date
+      # - data_ingestion.end_date
       - data_ingestion.source
     outs:
       - data/raw/stock_data_raw_${data_ingestion.stock_symbol}.csv

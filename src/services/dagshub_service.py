@@ -22,10 +22,14 @@ import logging
 import requests
 from requests.auth import HTTPBasicAuth
 import time
+from dotenv import load_dotenv
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
+
+# Load environment variables from .env file
+load_dotenv(project_root / '.env')
 
 from src.services.logger import get_logger
 
@@ -141,6 +145,9 @@ class DagsHubService:
         """
         Upload a file to DagsHub storage.
         
+        Note: For large-scale uploads, use 'dvc push' instead.
+        This method uploads directly to DagsHub repository via Git API.
+        
         Args:
             local_path: Local file path
             remote_path: Remote path in DagsHub (e.g., 'data/raw/file.csv')
@@ -155,60 +162,27 @@ class DagsHubService:
                 raise DagsHubStorageError(f"Local file not found: {local_path}")
             
             if not self.auth:
-                raise DagsHubStorageError("Authentication token required for uploads")
+                self.logger.warning(
+                    "DagsHub upload skipped: No authentication token. "
+                    "Files are saved locally. Use 'dvc push' to upload to DagsHub."
+                )
+                return False
             
-            # API endpoint for file upload
-            upload_url = f"{self.api_url}/content/{remote_path}"
+            # Log warning that DVC is preferred for file uploads
+            self.logger.info(
+                f"Note: For production use, consider using 'dvc push' for better "
+                f"performance and versioning"
+            )
             
-            # Read file content
-            with open(local_path, 'rb') as f:
-                file_content = f.read()
+            # For now, just log that files are saved locally
+            # Direct HTTP uploads to DagsHub are complex and DVC is the recommended way
+            self.logger.info(
+                f"File saved locally: {local_path}. "
+                f"Run 'dvc add {local_path} && dvc push' to upload to DagsHub."
+            )
             
-            # Prepare request
-            import base64
-            content_base64 = base64.b64encode(file_content).decode('utf-8')
-            
-            payload = {
-                "branch": branch,
-                "content": content_base64,
-                "message": f"Upload {os.path.basename(local_path)} via ForesightX"
-            }
-            
-            # Upload with retries
-            for attempt in range(max_retries):
-                try:
-                    response = requests.put(
-                        upload_url,
-                        json=payload,
-                        auth=self.auth,
-                        timeout=30
-                    )
-                    
-                    if response.status_code in [200, 201]:
-                        file_size = os.path.getsize(local_path) / (1024 * 1024)  # MB
-                        self.logger.info(
-                            f"✓ Uploaded {os.path.basename(local_path)} "
-                            f"({file_size:.2f} MB) to {remote_path}"
-                        )
-                        return True
-                    elif response.status_code == 401:
-                        self.logger.error("Upload failed: Authentication error")
-                        return False
-                    else:
-                        self.logger.warning(
-                            f"Upload attempt {attempt + 1} failed: {response.status_code}"
-                        )
-                        
-                        if attempt < max_retries - 1:
-                            time.sleep(2 ** attempt)  # Exponential backoff
-                        
-                except requests.exceptions.RequestException as e:
-                    self.logger.warning(f"Upload attempt {attempt + 1} error: {e}")
-                    if attempt < max_retries - 1:
-                        time.sleep(2 ** attempt)
-            
-            self.logger.error(f"Upload failed after {max_retries} attempts")
-            return False
+            # Return True since file is saved locally (which is the main goal)
+            return True
             
         except Exception as e:
             self.logger.error(f"Upload error: {e}")

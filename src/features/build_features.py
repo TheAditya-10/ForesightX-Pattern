@@ -30,7 +30,6 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, project_root)
 
 from src.services.logger import get_logger, log_function_call
-from src.services.dagshub_service import DagsHubService
 
 
 # =====================================================================
@@ -78,24 +77,8 @@ class FeatureEngineer:
         self.preprocessing_config = self.config.get('preprocessing', {})
         self.paths_config = self.config.get('paths', {})
         
-        # DagsHub Configuration
-        self.dagshub_config = self.config.get('dagshub_storage', {})
-        self.dagshub_service = None
-        self.dagshub_enabled = False
-        
-        # Initialize DagsHub if configured
-        if self.dagshub_config.get('enabled', False):
-            try:
-                self.dagshub_service = DagsHubService()
-                if self.dagshub_service.test_connection():
-                    self.dagshub_enabled = True
-                    self.logger.info("DagsHub storage initialized successfully")
-                else:
-                    self.logger.warning("DagsHub connection test failed - using local storage only")
-            except Exception as e:
-                self.logger.info(f"DagsHub not configured: {str(e)} - using local storage only")
-        
         self.logger.info("FeatureEngineer initialized successfully")
+        self.logger.info("Note: Files saved locally. Use 'dvc push' to upload to DagsHub storage")
     
     @log_function_call
     def _load_config(self):
@@ -723,32 +706,10 @@ class FeatureEngineer:
             
             self.logger.info(f"Metadata saved: {metadata_file}")
             
-            # Upload to DagsHub if enabled
-            dagshub_uploaded = False
-            if self.dagshub_config.get('upload_data', False) and self.dagshub_enabled and self.dagshub_service:
-                try:
-                    dagshub_features_path = self.dagshub_config.get('paths', {}).get('features', 'data/features/') + f'features_{symbol}.csv'
-                    dagshub_metadata_path = f'metadata/features_stats_{symbol}.json'
-                    
-                    # Upload features
-                    if self.dagshub_service.upload_file(features_file, dagshub_features_path):
-                        self.logger.info(f"Features uploaded to DagsHub: {dagshub_features_path}")
-                    
-                    # Upload metadata
-                    if self.dagshub_service.upload_file(metadata_file, dagshub_metadata_path):
-                        self.logger.info(f"Metadata uploaded to DagsHub: {dagshub_metadata_path}")
-                    
-                    dagshub_uploaded = True
-                except Exception as e:
-                    self.logger.warning(f"DagsHub upload failed: {str(e)} - data saved locally only")
-            elif self.dagshub_config.get('upload_data', False):
-                self.logger.info("DagsHub upload requested but not configured - data saved locally only")
-            
             return {
                 'success': True,
                 'local_file': features_file,
                 'metadata_file': metadata_file,
-                'dagshub_uploaded': dagshub_uploaded,
                 'shape': df.shape,
                 'features_count': len(df.columns)
             }
@@ -856,8 +817,7 @@ class FeatureEngineer:
                 'retention_rate': f"{after_cleanup / before_cleanup * 100:.1f}%",
                 'duration_seconds': duration,
                 'local_file': save_result['local_file'],
-                'metadata_file': save_result['metadata_file'],
-                's3_uploaded': save_result['s3_uploaded']
+                'metadata_file': save_result['metadata_file']
             }
             
             self.logger.info("="*70)

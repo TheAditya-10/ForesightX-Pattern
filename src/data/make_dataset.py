@@ -35,7 +35,6 @@ import yaml
 
 # Local imports
 from src.services.logger import get_logger, log_function_call
-from src.services.dagshub_service import DagsHubService
 
 
 class DataIngestionError(Exception):
@@ -84,22 +83,8 @@ class StockDataIngestion:
             # Setup directories
             self._setup_directories()
             
-            # Initialize DagsHub service (optional - for cloud backup)
-            self.dagshub_service = None
-            self.dagshub_enabled = False
-            dagshub_config = self.config.get('dagshub_storage', {})
-            
-            if dagshub_config.get('enabled', False):
-                try:
-                    self.dagshub_service = DagsHubService()
-                    if self.dagshub_service.test_connection():
-                        self.logger.info("DagsHub storage initialized and connected successfully")
-                        self.dagshub_enabled = True
-                except Exception as e:
-                    self.logger.info(f"DagsHub not configured - using local storage only")
-                    self.logger.debug(f"DagsHub initialization skipped: {e}")
-            
             self.logger.info("Data ingestion pipeline initialized successfully")
+            self.logger.info("Note: Files saved locally. Use 'dvc push' to upload to DagsHub storage")
             
         except Exception as e:
             self.logger.error(f"Failed to initialize data ingestion: {e}")
@@ -176,7 +161,7 @@ class StockDataIngestion:
         # Use config values if parameters not provided
         symbol = symbol or self.config['data_ingestion']['stock_symbol']
         start_date = start_date or self.config['data_ingestion']['start_date']
-        end_date = date.today() or self.config['data_ingestion']['end_date']
+        end_date = datetime.now() or self.config['data_ingestion']['end_date']
         
         self.logger.info(f"Fetching data for {symbol}")
         self.logger.info(f"  Source: Yahoo Finance (yfinance)")
@@ -231,7 +216,7 @@ class StockDataIngestion:
             
             # Validate dates
             start = datetime.strptime(start_date, "%Y-%m-%d")
-            end = datetime.strptime(end_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d") if isinstance(end_date, str) else end_date
             
             if start >= end:
                 raise DataIngestionError("Start date must be before end date")
@@ -449,26 +434,6 @@ class StockDataIngestion:
                 'data_path': str(data_path),
                 'metadata_path': str(metadata_path)
             }
-            
-            # Upload to DagsHub if enabled and configured
-            if save_to_dagshub and self.dagshub_enabled and self.dagshub_service:
-                try:
-                    dagshub_config = self.config.get('dagshub_storage', {})
-                    dagshub_data_path = dagshub_config.get('paths', {}).get('raw_data', 'data/raw/') + data_filename
-                    dagshub_metadata_path = 'metadata/' + metadata_filename
-                    
-                    if self.dagshub_service.upload_file(str(data_path), dagshub_data_path):
-                        self.logger.info(f"✓ Data uploaded to DagsHub: {dagshub_data_path}")
-                        result['dagshub_data_path'] = dagshub_data_path
-                    
-                    if self.dagshub_service.upload_file(str(metadata_path), dagshub_metadata_path):
-                        self.logger.info(f"✓ Metadata uploaded to DagsHub: {dagshub_metadata_path}")
-                        result['dagshub_metadata_path'] = dagshub_metadata_path
-                    
-                except Exception as e:
-                    self.logger.warning(f"DagsHub upload failed: {e}")
-            elif save_to_dagshub and not self.dagshub_enabled:
-                self.logger.info("DagsHub upload requested but not configured - data saved locally only")
             
             return result
             

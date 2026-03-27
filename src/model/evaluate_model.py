@@ -22,6 +22,7 @@ import numpy as np
 import pickle
 import json
 from datetime import datetime
+from pathlib import Path
 from sklearn.metrics import (
     mean_squared_error, 
     mean_absolute_error,
@@ -29,6 +30,11 @@ from sklearn.metrics import (
 )
 import warnings
 warnings.filterwarnings('ignore')
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+project_root = Path(__file__).parent.parent.parent
+load_dotenv(project_root / '.env')
 
 # MLflow imports
 import mlflow
@@ -36,11 +42,9 @@ import mlflow.sklearn
 from mlflow.tracking import MlflowClient
 
 # Add project root to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-sys.path.insert(0, project_root)
+sys.path.insert(0, str(project_root))
 
 from src.services.logger import get_logger, log_function_call
-from src.services.dagshub_service import DagsHubService
 
 
 # =====================================================================
@@ -82,24 +86,7 @@ class MLPModelEvaluator:
         self.data_config = self.config.get('data_ingestion', {})
         self.mlflow_config = self.config.get('mlflow', {})
         
-        # DagsHub Configuration
-        self.dagshub_config = self.config.get('dagshub_storage', {})
-        self.dagshub_service = None
-        self.dagshub_enabled = False
-        
-        # Initialize DagsHub if configured
-        if self.dagshub_config.get('enabled', False):
-            try:
-                self.dagshub_service = DagsHubService()
-                if self.dagshub_service.test_connection():
-                    self.dagshub_enabled = True
-                    self.logger.info("DagsHub storage initialized successfully")
-                else:
-                    self.logger.warning("DagsHub connection test failed - using local storage only")
-            except Exception as e:
-                self.logger.info(f"DagsHub not configured: {str(e)} - using local storage only")
-        
-        # Initialize MLflow
+# Initialize MLflow
         self._setup_mlflow()
         
         # Model artifacts
@@ -108,6 +95,7 @@ class MLPModelEvaluator:
         self.metadata = None
         
         self.logger.info("MLPModelEvaluator initialized successfully")
+        self.logger.info("Note: Files saved locally. Use 'dvc push' to upload to DagsHub storage")
     
     @log_function_call
     def _load_config(self):
@@ -423,32 +411,10 @@ class MLPModelEvaluator:
                 pred_df.to_csv(predictions_file, index=False)
                 self.logger.info(f"Predictions saved: {predictions_file}")
             
-            # Upload to DagsHub if enabled
-            dagshub_uploaded = False
-            if self.dagshub_config.get('upload_results', False) and self.dagshub_enabled and self.dagshub_service:
-                try:
-                    dagshub_results_path = self.dagshub_config.get('paths', {}).get('results', 'results/')
-                    
-                    # Upload metrics
-                    dagshub_metrics_path = dagshub_results_path + f'evaluation_metrics_{symbol}.json'
-                    if self.dagshub_service.upload_file(metrics_file, dagshub_metrics_path):
-                        self.logger.info(f"Metrics uploaded to DagsHub: {dagshub_metrics_path}")
-                    
-                    # Upload predictions if available
-                    if predictions_file:
-                        dagshub_pred_path = dagshub_results_path + f'predictions_{symbol}.csv'
-                        if self.dagshub_service.upload_file(predictions_file, dagshub_pred_path):
-                            self.logger.info(f"Predictions uploaded to DagsHub: {dagshub_pred_path}")
-                    
-                    dagshub_uploaded = True
-                except Exception as e:
-                    self.logger.warning(f"DagsHub upload failed: {str(e)} - results saved locally only")
-            
             return {
                 'success': True,
                 'metrics_file': metrics_file,
-                'predictions_file': predictions_file,
-                'dagshub_uploaded': dagshub_uploaded
+                'predictions_file': predictions_file
             }
             
         except Exception as e:
@@ -630,7 +596,6 @@ class MLPModelEvaluator:
                 'duration_seconds': duration,
                 'results_file': save_result['metrics_file'],
                 'predictions_file': save_result['predictions_file'],
-                'dagshub_uploaded': save_result['dagshub_uploaded'],
                 'mlflow_logged': self.mlflow_enabled
             }
             

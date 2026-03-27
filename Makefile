@@ -1,4 +1,4 @@
-.PHONY: clean data lint requirements sync_data_to_s3 sync_data_from_s3
+.PHONY: clean data lint requirements sync_data_to_s3 sync_data_from_s3 serve_api
 
 #################################################################################
 # GLOBALS                                                                       #
@@ -37,6 +37,10 @@ clean:
 ## Lint using flake8
 lint:
 	flake8 src
+
+## Run inference API
+serve_api:
+	$(PYTHON_INTERPRETER) -m uvicorn src.inference.fastapi:app --reload --host 0.0.0.0 --port 8003
 
 ## Upload Data to S3
 sync_data_to_s3:

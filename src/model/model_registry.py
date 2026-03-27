@@ -23,6 +23,11 @@ from datetime import datetime
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+project_root = Path(__file__).parent.parent.parent
+load_dotenv(project_root / '.env')
 
 # MLflow imports
 import mlflow
@@ -31,8 +36,7 @@ from mlflow.tracking import MlflowClient
 from mlflow.exceptions import MlflowException
 
 # Add project root to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-sys.path.insert(0, project_root)
+sys.path.insert(0, str(project_root))
 
 from src.services.logger import get_logger, log_function_call
 
