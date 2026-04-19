@@ -1,63 +1,152 @@
-# ForesightX-pattern
+# ForesightX Pattern
 
-This repository contains the ML and data-science pipeline for the pattern/prediction service.
+ForesightX Pattern is a production-oriented ML microservice split into two layers:
 
-## What Exists Today
+1. Offline ML system for ingestion, preprocessing, feature engineering, sequence building, training, evaluation, MLflow tracking, and DVC orchestration.
+2. Online inference service for FastAPI prediction, cached model loading, latest-bar feature building, and Monte Carlo dropout confidence estimation.
 
-- Data ingestion, preprocessing, feature engineering, training, evaluation, and model-registry code under `src/`
-- File-based model artifacts under `models/`, `metadata/`, `data/features/`, and `results/`
-- A FastAPI inference layer under `src/inference/fastapi.py`
+## Architecture
 
-## Serving Boundary
+```text
+foresightx_pattern/
+├── foresightx_pattern/
+│   ├── app/                  # FastAPI inference layer
+│   └── ml/                   # Offline ML layer
+├── pipelines/               # DVC entry points
+├── configs/                 # Runtime and training config
+├── artifacts/               # Data, reports, trained model bundle
+├── tests/                   # Unit and API tests
+├── dvc.yaml
+├── mlflow_config.py
+├── Dockerfile
+└── docker-compose.yml
+```
 
-The serving layer is intentionally separated from the ML pipeline:
+## Model Design
 
-- It does not retrain models.
-- It does not rewrite the feature pipeline.
-- It consumes already-generated artifacts and exposes them through API endpoints.
-- It now persists model-registry metadata and inference jobs in its own PostgreSQL schema.
+- Global foundation model trained across multiple tickers.
+- Sequence encoder: linear projection + LSTM/GRU.
+- Stock adaptation: offline-trained `nn.Embedding(num_stocks, embedding_dim)`.
+- Fusion: encoder latent + stock embedding.
+- Head: dense layers -> next 3 hourly close predictions.
+- Confidence layer: MC Dropout with mean, standard deviation, prediction intervals, and scalar confidence.
 
-That keeps the microservice stable while preserving the data-science workflow.
+## Feature Contract
 
-## Run The API
+The offline and online systems share the same feature contract:
 
-Install dependencies and start the service:
+- OHLCV
+- returns
+- RSI
+- EMA fast/slow
+- MACD, signal, histogram
+- rolling mean/std
+- time features: hour, day-of-week, sinusoidal encodings
+
+Only past bars are used. Targets are the next 3 trading-hour closes. Trading hours are filtered explicitly; the service does not assume a 24h market.
+
+## Training
+
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
-uvicorn src.inference.fastapi:app --reload --host 0.0.0.0 --port 8003
 ```
 
-This service reads local configuration from `ForesightX-pattern/.env`.
-
-Before first startup:
+Run the DVC pipeline:
 
 ```bash
-alembic upgrade head
+dvc repro
 ```
 
-## Available Endpoints
+Or run training directly:
 
-- `GET /health/live`
-- `GET /health/ready`
-- `GET /models`
-- `GET /models/{symbol}`
-- `GET /predictions/{symbol}/latest`
-- `POST /predictions/latest`
-- `POST /predict`
-- `GET /predictions/{symbol}/history`
+```bash
+python pipelines/train_foundation.py
+```
 
-Schema ownership:
+Artifacts written locally:
 
-- `model_registry_entries`: serving metadata for available model artifacts
-- `prediction_jobs`: one row per inference request/result served by the API
+- `artifacts/data/raw_market.parquet`
+- `artifacts/data/processed_market.parquet`
+- `artifacts/data/feature_store.parquet`
+- `artifacts/model/model.pt`
+- `artifacts/model/scaler.pkl`
+- `artifacts/model/metadata.json`
+- `artifacts/reports/evaluation.json`
 
-## Current Limitation
+MLflow:
 
-Predictions are only available for symbols that already have all three artifacts:
+- `mlflow_config.py` configures tracking from `configs/default.yaml`
+- training logs params, metrics, and artifacts
+- best model is registered and transitioned to `Production` when registry support is available
 
-- `models/mlp_model_<SYMBOL>.pkl`
-- `models/mlp_scaler_<SYMBOL>.pkl`
-- `metadata/mlp_model_stats_<SYMBOL>.json`
+## Inference
 
-If a symbol has no trained artifacts yet, the API returns a clear error instead of attempting ad-hoc training.
+Start the API:
+
+```bash
+uvicorn foresightx_pattern.app.main:app --reload --host 0.0.0.0 --port 8003
+```
+
+Endpoint:
+
+```http
+POST /predict
+Content-Type: application/json
+
+{
+  "ticker": "TATAMOTORS.NS",
+  "timestamp": "2026-04-19T10:00:00+05:30"
+}
+```
+
+Response:
+
+```json
+{
+  "ticker": "TATAMOTORS.NS",
+  "predictions": [624.1, 626.4, 628.0],
+  "confidence": 0.91,
+  "intervals": [[620.0, 628.0], [622.2, 630.6], [623.5, 632.5]],
+  "model_version": "7"
+}
+```
+
+Inference flow:
+
+1. Fetch latest hourly bars for the requested ticker.
+2. Rebuild the shared feature set using only past data.
+3. Load the cached model bundle once.
+4. Map `ticker -> stock_id`.
+5. Run prediction.
+6. Run MC Dropout confidence estimation.
+7. Return predictions, confidence, intervals, and model version.
+
+## Tests
+
+```bash
+pytest tests/test_model.py tests/test_features.py tests/test_api.py
+```
+
+Test coverage includes:
+
+- feature pipeline output
+- model forward pass shape
+- `/predict` API contract
+
+## Deployment
+
+Build the container:
+
+```bash
+docker build -f ForesightX-Pattern/Dockerfile -t foresightx-pattern ..
+```
+
+Run with Redis sidecar:
+
+```bash
+docker compose -f docker-compose.yml up --build
+```
+
+Redis is included for future cache extension; current in-process caching is implemented in `FeatureService`.

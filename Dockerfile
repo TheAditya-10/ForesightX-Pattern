@@ -3,14 +3,14 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-WORKDIR /app/ForesightX-pattern
+WORKDIR /app
 
-COPY ForesightX-pattern/requirements.service.txt /app/ForesightX-pattern/requirements.service.txt
+COPY ForesightX-Pattern/requirements.service.txt /app/requirements.service.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.service.txt
+    pip install --no-cache-dir -r /app/requirements.service.txt
 
-COPY ForesightX-pattern /app/ForesightX-pattern
+COPY ForesightX-Pattern /app
 
 EXPOSE 8003
 
-CMD ["uvicorn", "src.inference.fastapi:app", "--host", "0.0.0.0", "--port", "8003"]
+CMD ["uvicorn", "foresightx_pattern.app.main:app", "--host", "0.0.0.0", "--port", "8003"]

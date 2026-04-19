@@ -1,0 +1,20 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: ForesightX-Pattern/Dockerfile
+    environment:
+      FORESIGHTX_CONFIG_PATH: /app/configs/default.yaml
+      FORESIGHTX_ARTIFACTS_DIR: /app/artifacts/model
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./configs:/app/configs
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

@@ -1,0 +1,55 @@
+artifacts:
+  root_dir: artifacts
+  raw_data_path: artifacts/data/raw_market.parquet
+  processed_data_path: artifacts/data/processed_market.parquet
+  features_path: artifacts/data/feature_store.parquet
+  reports_path: artifacts/reports
+  mlruns_path: artifacts/mlruns
+
+data:
+  tickers: ["AAPL", "MSFT", "NVDA", "TATAMOTORS.NS"]
+  period: "730d"
+  serving_period: "90d"
+  interval: "1h"
+  sequence_length: 48
+  horizon: 3
+  market_timezone: "Asia/Kolkata"
+  market_open_hour: 9
+  market_close_hour: 15
+  market_close_minute: 30
+
+features:
+  rsi_window: 14
+  ema_fast: 12
+  ema_slow: 26
+  macd_signal: 9
+  rolling_windows: [5, 10, 20]
+
+model:
+  encoder_type: "lstm"
+  projection_dim: 64
+  hidden_dim: 128
+  embedding_dim: 16
+  num_layers: 2
+  dropout: 0.2
+
+training:
+  validation_split: 0.2
+  batch_size: 64
+  epochs: 10
+  learning_rate: 0.001
+  early_stopping_patience: 4
+
+tracking:
+  experiment_name: "foresightx-pattern"
+  tracking_uri: ""
+  registry_model_name: "foresightx_pattern_foundation"
+
+service:
+  host: "0.0.0.0"
+  port: 8003
+  log_level: "INFO"
+  mc_dropout_samples: 20
+
+cache:
+  feature_ttl_seconds: 300
