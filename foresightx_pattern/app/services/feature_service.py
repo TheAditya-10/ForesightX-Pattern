@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -35,7 +35,7 @@ class FeatureService:
 
     def _load_frame(self, ticker: str, timestamp: datetime | None) -> pd.DataFrame:
         cache_key = f"{ticker}:{timestamp.isoformat() if timestamp else 'latest'}"
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         cached = self._cache.get(cache_key)
         if cached and cached.expires_at > now:
             return cached.frame.copy()

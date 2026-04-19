@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from sklearn.preprocessing import StandardScaler
 
 from foresightx_pattern.app.main import create_app
+from foresightx_pattern.ml.features.engineering import feature_columns
 from foresightx_pattern.ml.models.full_model import ForesightXPatternModel
 from foresightx_pattern.ml.utils.config import load_settings
 
@@ -19,16 +20,17 @@ def test_predict_endpoint_returns_predictions(tmp_path: Path):
     settings = load_settings()
     settings.model_dir = tmp_path / "model"
     settings.model_dir.mkdir(parents=True, exist_ok=True)
+    feature_names = feature_columns()
     scaler = StandardScaler()
-    scaler.fit(np.random.randn(200, 24))
+    scaler.fit(pd.DataFrame(np.random.randn(200, len(feature_names)), columns=feature_names))
     with (settings.model_dir / "scaler.pkl").open("wb") as handle:
         pickle.dump(scaler, handle)
     metadata = {
         "model_version": "test",
         "sequence_length": 48,
-        "feature_names": [f"f{i}" for i in range(24)],
+        "feature_names": feature_names,
         "stock_to_id": {"TATAMOTORS.NS": 0},
-        "input_dim": 24,
+        "input_dim": len(feature_names),
         "num_stocks": 1,
         "projection_dim": 64,
         "hidden_dim": 128,
@@ -38,7 +40,7 @@ def test_predict_endpoint_returns_predictions(tmp_path: Path):
         "encoder_type": "lstm",
     }
     (settings.model_dir / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
-    model = ForesightXPatternModel(input_dim=24, num_stocks=1)
+    model = ForesightXPatternModel(input_dim=len(feature_names), num_stocks=1)
     torch.save(model.state_dict(), settings.model_dir / "model.pt")
 
     def fake_provider(ticker, _settings, timestamp):

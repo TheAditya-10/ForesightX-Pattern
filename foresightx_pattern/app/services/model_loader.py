@@ -40,7 +40,7 @@ class ModelLoader:
             dropout=metadata["dropout"],
             encoder_type=metadata["encoder_type"],
         )
-        state = torch.load(model_dir / "model.pt", map_location="cpu")
+        state = torch.load(model_dir / "model.pt", map_location="cpu", weights_only=True)
         model.load_state_dict(state)
         model.eval()
         self._cached = LoadedModelBundle(model=model, scaler=scaler, metadata=metadata)
