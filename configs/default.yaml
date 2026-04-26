@@ -7,7 +7,7 @@ artifacts:
   mlruns_path: artifacts/mlruns
 
 data:
-  tickers: ["AAPL", "MSFT", "NVDA", "TATAMOTORS.NS"]
+  tickers: ["AAPL", "MSFT", "NVDA", "RELIANCE.NS"]
   period: "730d"
   serving_period: "90d"
   interval: "1h"

@@ -159,7 +159,15 @@ def _persist_artifacts(model, bundle, metrics: dict[str, float], settings) -> No
             "epochs": settings.training.get("epochs", 10),
         },
         metrics=metrics,
-        artifact_paths=[settings.raw_data_path, settings.processed_data_path, settings.features_path, report_path],
+        artifact_paths=[
+            settings.raw_data_path,
+            settings.processed_data_path,
+            settings.features_path,
+            report_path,
+            scaler_path,
+            metadata_path,
+            mlflow_model_dir,
+        ],
     )
     version = mark_model_production(settings, metadata["model_name"], run_id, model_dir)
     metadata["model_version"] = str(version)

@@ -27,6 +27,19 @@ class ModelLoader:
         if self._cached is not None:
             return self._cached
         model_dir = self.settings.model_dir
+        required_files = [
+            model_dir / "metadata.json",
+            model_dir / "scaler.pkl",
+            model_dir / "model.pt",
+        ]
+        missing = [path.name for path in required_files if not path.exists()]
+        if missing:
+            raise FileNotFoundError(
+                "Pattern model artifacts are missing from "
+                f"{model_dir}. Missing: {', '.join(missing)}. "
+                "Provide the trained bundle via DVC/MLflow deployment artifacts or set "
+                "FORESIGHTX_ARTIFACTS_DIR to a directory containing model.pt, scaler.pkl, and metadata.json."
+            )
         metadata = json.loads((model_dir / "metadata.json").read_text(encoding="utf-8"))
         with (model_dir / "scaler.pkl").open("rb") as handle:
             scaler = pickle.load(handle)

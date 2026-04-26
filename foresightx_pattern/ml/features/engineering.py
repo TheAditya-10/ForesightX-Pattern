@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from foresightx_pattern.ml.utils.config import AppSettings
+from foresightx_pattern.ml.utils.markets import market_profile_for_ticker
 
 
 def _compute_rsi(series: pd.Series, window: int) -> pd.Series:
@@ -29,6 +30,8 @@ def build_feature_frame(frame: pd.DataFrame, settings: AppSettings) -> pd.DataFr
     for ticker, ticker_frame in frame.groupby("Ticker", sort=True):
         data = ticker_frame.sort_values("Timestamp").copy()
         close = data["Close"]
+        market_profile = market_profile_for_ticker(ticker)
+        local_timestamp = pd.to_datetime(data["Timestamp"], utc=True).dt.tz_convert(market_profile.timezone)
         data["return_1"] = close.pct_change()
         data["ema_fast"] = close.ewm(span=ema_fast, adjust=False).mean()
         data["ema_slow"] = close.ewm(span=ema_slow, adjust=False).mean()
@@ -39,8 +42,8 @@ def build_feature_frame(frame: pd.DataFrame, settings: AppSettings) -> pd.DataFr
         for window in rolling_windows:
             data[f"rolling_mean_{window}"] = close.rolling(window).mean()
             data[f"rolling_std_{window}"] = close.rolling(window).std()
-        data["hour"] = data["Timestamp"].dt.hour
-        data["day_of_week"] = data["Timestamp"].dt.dayofweek
+        data["hour"] = local_timestamp.dt.hour
+        data["day_of_week"] = local_timestamp.dt.dayofweek
         data["hour_sin"] = np.sin(2 * np.pi * data["hour"] / 24)
         data["hour_cos"] = np.cos(2 * np.pi * data["hour"] / 24)
         data["day_sin"] = np.sin(2 * np.pi * data["day_of_week"] / 7)

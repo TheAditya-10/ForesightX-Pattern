@@ -16,6 +16,7 @@ DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "default.yaml"
 class AppSettings:
     project_root: Path
     config_path: Path
+    data_service_url: str
     raw_data_path: Path
     processed_data_path: Path
     features_path: Path
@@ -62,6 +63,7 @@ def load_settings(config_path: Path | None = None) -> AppSettings:
     return AppSettings(
         project_root=project_root,
         config_path=Path(os.getenv("FORESIGHTX_CONFIG_PATH", config_path or DEFAULT_CONFIG_PATH)),
+        data_service_url=os.getenv("PATTERN_DATA_SERVICE_URL", "http://localhost:8001"),
         raw_data_path=raw_data_path,
         processed_data_path=processed_data_path,
         features_path=features_path,

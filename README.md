@@ -86,6 +86,7 @@ MLflow:
 Start the API:
 
 ```bash
+dvc pull artifacts/model
 uvicorn foresightx_pattern.app.main:app --reload --host 0.0.0.0 --port 8003
 ```
 
@@ -96,7 +97,7 @@ POST /predict
 Content-Type: application/json
 
 {
-  "ticker": "TATAMOTORS.NS",
+  "ticker": "RELIANCE.NS",
   "timestamp": "2026-04-19T10:00:00+05:30"
 }
 ```
@@ -117,7 +118,7 @@ Inference flow:
 
 1. Fetch latest hourly bars for the requested ticker.
 2. Rebuild the shared feature set using only past data.
-3. Load the cached model bundle once.
+3. Load the cached model bundle once from `artifacts/model` or `FORESIGHTX_ARTIFACTS_DIR`.
 4. Map `ticker -> stock_id`.
 5. Run prediction.
 6. Run MC Dropout confidence estimation.

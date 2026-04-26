@@ -21,7 +21,7 @@ class ServiceContainer:
 def get_container(settings: AppSettings | None = None, data_provider: DataProvider | None = None) -> ServiceContainer:
     loaded = settings or load_settings()
     if data_provider is None:
-        from foresightx_pattern.app.services.feature_service import download_latest_market_data
+        from foresightx_pattern.app.services.data_service_provider import load_bars_from_data_service
 
-        data_provider = download_latest_market_data
+        data_provider = load_bars_from_data_service
     return ServiceContainer(settings=loaded, data_provider=data_provider)

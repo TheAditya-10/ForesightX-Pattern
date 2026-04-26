@@ -46,17 +46,31 @@ class FeatureService:
 
 
 def download_latest_market_data(ticker: str, settings: AppSettings, timestamp: pd.Timestamp | None) -> pd.DataFrame:
-    frame = yf.download(
-        ticker,
-        period=settings.data.get("serving_period", "90d"),
-        interval=settings.data.get("interval", "1h"),
-        auto_adjust=False,
-        progress=False,
-        prepost=False,
-        threads=False,
-    )
+    attempts = [
+        (ticker, settings.data.get("serving_period", "90d"), settings.data.get("interval", "1h")),
+        (ticker, "6mo", "1d"),
+    ]
+    frame = pd.DataFrame()
+    for candidate_ticker, period, interval in attempts:
+        frame = yf.download(
+            candidate_ticker,
+            period=period,
+            interval=interval,
+            auto_adjust=False,
+            progress=False,
+            prepost=False,
+            threads=False,
+            multi_level_index=True,
+        )
+        if not frame.empty:
+            break
     if frame.empty:
         raise ValueError(f"No market data returned for {ticker}")
+
+    # yfinance may return MultiIndex columns for single tickers in some versions.
+    if isinstance(frame.columns, pd.MultiIndex):
+        frame.columns = frame.columns.get_level_values(0)
+
     frame = frame.reset_index().rename(columns={"Datetime": "Timestamp", "Date": "Timestamp"})
     if timestamp is not None:
         cutoff = timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp.tz_convert("UTC")
