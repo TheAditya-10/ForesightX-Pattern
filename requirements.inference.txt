@@ -1,0 +1,11 @@
+fastapi==0.115.11
+uvicorn[standard]==0.34.0
+pydantic==2.11.7
+python-dotenv==1.0.0
+PyYAML==6.0.2
+pandas==2.2.2
+numpy==2.1.1
+scikit-learn==1.6.1
+yfinance==0.2.66
+httpx==0.28.1
+torch==2.4.1+cpu

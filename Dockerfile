@@ -5,9 +5,9 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-COPY ForesightX-Pattern/requirements.service.txt /app/requirements.service.txt
+COPY ForesightX-Pattern/requirements.inference.txt /app/requirements.inference.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements.service.txt
+    pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.inference.txt
 
 COPY ForesightX-Pattern /app
 
