@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
+ENV FORESIGHTX_ARTIFACTS_DIR=/app/artifacts/model
 
 WORKDIR /app
 
@@ -10,7 +11,20 @@ COPY ForesightX-Pattern/requirements.inference.txt /app/requirements.inference.t
 RUN pip install --upgrade pip && \
     pip install --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.inference.txt
 
-COPY ForesightX-Pattern /app
+COPY ForesightX-Pattern/configs/default.yaml /app/configs/default.yaml
+COPY ForesightX-Pattern/artifacts/model/model.pt /app/artifacts/model/model.pt
+COPY ForesightX-Pattern/artifacts/model/scaler.pkl /app/artifacts/model/scaler.pkl
+COPY ForesightX-Pattern/artifacts/model/metadata.json /app/artifacts/model/metadata.json
+COPY ForesightX-Pattern/foresightx_pattern/__init__.py /app/foresightx_pattern/__init__.py
+COPY ForesightX-Pattern/foresightx_pattern/app /app/foresightx_pattern/app
+COPY ForesightX-Pattern/foresightx_pattern/ml/__init__.py /app/foresightx_pattern/ml/__init__.py
+COPY ForesightX-Pattern/foresightx_pattern/ml/data/__init__.py /app/foresightx_pattern/ml/data/__init__.py
+COPY ForesightX-Pattern/foresightx_pattern/ml/data/preprocessing.py /app/foresightx_pattern/ml/data/preprocessing.py
+COPY ForesightX-Pattern/foresightx_pattern/ml/features /app/foresightx_pattern/ml/features
+COPY ForesightX-Pattern/foresightx_pattern/ml/models /app/foresightx_pattern/ml/models
+COPY ForesightX-Pattern/foresightx_pattern/ml/utils/__init__.py /app/foresightx_pattern/ml/utils/__init__.py
+COPY ForesightX-Pattern/foresightx_pattern/ml/utils/config.py /app/foresightx_pattern/ml/utils/config.py
+COPY ForesightX-Pattern/foresightx_pattern/ml/utils/markets.py /app/foresightx_pattern/ml/utils/markets.py
 
 RUN useradd --create-home --shell /usr/sbin/nologin appuser && \
     chown -R appuser:appuser /app

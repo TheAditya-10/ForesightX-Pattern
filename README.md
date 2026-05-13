@@ -119,6 +119,22 @@ Inference flow:
 1. Fetch latest hourly bars for the requested ticker.
 2. Rebuild the shared feature set using only past data.
 3. Load the cached model bundle once from `artifacts/model` or `FORESIGHTX_ARTIFACTS_DIR`.
+
+## Deployment Scope
+
+This repository has two roles:
+
+- offline data-science work: data preparation, training, evaluation, notebooks, MLflow/DVC artifacts, and reports
+- online inference: the FastAPI service that exposes health and prediction endpoints
+
+The production Docker image is intentionally inference-only. It installs `requirements.inference.txt` and copies only:
+
+- `foresightx_pattern/app`
+- the runtime ML modules required by feature building and model execution
+- `configs/default.yaml`
+- the latest model bundle from `artifacts/model` (`model.pt`, `scaler.pkl`, `metadata.json`)
+
+Training code, notebooks, papers, raw/processed data, MLflow runs, and reports are excluded from the runtime image to keep EC2 resource usage low.
 4. Map `ticker -> stock_id`.
 5. Run prediction.
 6. Run MC Dropout confidence estimation.
