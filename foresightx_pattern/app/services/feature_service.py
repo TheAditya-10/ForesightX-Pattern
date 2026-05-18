@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 
 import pandas as pd
-import yfinance as yf
 
 from foresightx_pattern.ml.data.preprocessing import clean_market_data
 from foresightx_pattern.ml.features.engineering import build_feature_frame
@@ -23,6 +23,7 @@ class FeatureService:
         self.settings = settings
         self.data_provider = data_provider
         self._cache: dict[str, CachedFrame] = {}
+        self._lock = Lock()
 
     def latest_sequence(self, ticker: str, scaler, timestamp: datetime | None) -> tuple[pd.DataFrame, object]:
         frame = self._load_frame(ticker, timestamp)
@@ -36,16 +37,26 @@ class FeatureService:
     def _load_frame(self, ticker: str, timestamp: datetime | None) -> pd.DataFrame:
         cache_key = f"{ticker}:{timestamp.isoformat() if timestamp else 'latest'}"
         now = datetime.now(UTC)
-        cached = self._cache.get(cache_key)
-        if cached and cached.expires_at > now:
-            return cached.frame.copy()
+        with self._lock:
+            cached = self._cache.get(cache_key)
+            if cached and cached.expires_at > now:
+                return cached.frame.copy()
         frame = self.data_provider(ticker, self.settings, pd.Timestamp(timestamp) if timestamp else None)
         ttl_seconds = int(self.settings.cache.get("feature_ttl_seconds", 300))
-        self._cache[cache_key] = CachedFrame(expires_at=now + timedelta(seconds=ttl_seconds), frame=frame.copy())
+        with self._lock:
+            self._cache[cache_key] = CachedFrame(expires_at=now + timedelta(seconds=ttl_seconds), frame=frame.copy())
         return frame
+
+    def cache_size(self) -> int:
+        with self._lock:
+            return len(self._cache)
 
 
 def download_latest_market_data(ticker: str, settings: AppSettings, timestamp: pd.Timestamp | None) -> pd.DataFrame:
+    try:
+        import yfinance as yf
+    except ImportError as exc:
+        raise RuntimeError("yfinance is required for direct market data downloads") from exc
     attempts = [
         (ticker, settings.data.get("serving_period", "90d"), settings.data.get("interval", "1h")),
         (ticker, "6mo", "1d"),
