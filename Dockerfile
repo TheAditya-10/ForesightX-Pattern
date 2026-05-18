@@ -25,9 +25,7 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 
 COPY ForesightX-Pattern/configs/default.yaml /app/configs/default.yaml
-COPY ForesightX-Pattern/artifacts/model/model.onnx /app/artifacts/model/model.onnx
-COPY ForesightX-Pattern/artifacts/model/scaler.pkl /app/artifacts/model/scaler.pkl
-COPY ForesightX-Pattern/artifacts/model/metadata.json /app/artifacts/model/metadata.json
+COPY ForesightX-Pattern/artifacts/model /app/artifacts/model
 COPY ForesightX-Pattern/foresightx_pattern/__init__.py /app/foresightx_pattern/__init__.py
 COPY ForesightX-Pattern/foresightx_pattern/app /app/foresightx_pattern/app
 COPY ForesightX-Pattern/foresightx_pattern/ml/__init__.py /app/foresightx_pattern/ml/__init__.py
