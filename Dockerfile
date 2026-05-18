@@ -1,4 +1,19 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY ForesightX-Pattern/requirements.inference.txt /build/requirements.inference.txt
+RUN pip install --no-cache-dir --prefix=/install -r /build/requirements.inference.txt
+
+FROM python:3.12-slim AS runner
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -7,9 +22,7 @@ ENV FORESIGHTX_ARTIFACTS_DIR=/app/artifacts/model
 
 WORKDIR /app
 
-COPY ForesightX-Pattern/requirements.inference.txt /app/requirements.inference.txt
-RUN pip install --upgrade pip && \
-    pip install -r /app/requirements.inference.txt
+COPY --from=builder /install /usr/local
 
 COPY ForesightX-Pattern/configs/default.yaml /app/configs/default.yaml
 COPY ForesightX-Pattern/artifacts/model/model.onnx /app/artifacts/model/model.onnx
