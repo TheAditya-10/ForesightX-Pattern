@@ -9,10 +9,10 @@ WORKDIR /app
 
 COPY ForesightX-Pattern/requirements.inference.txt /app/requirements.inference.txt
 RUN pip install --upgrade pip && \
-    pip install --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.inference.txt
+    pip install -r /app/requirements.inference.txt
 
 COPY ForesightX-Pattern/configs/default.yaml /app/configs/default.yaml
-COPY ForesightX-Pattern/artifacts/model/model.pt /app/artifacts/model/model.pt
+COPY ForesightX-Pattern/artifacts/model/model.onnx /app/artifacts/model/model.onnx
 COPY ForesightX-Pattern/artifacts/model/scaler.pkl /app/artifacts/model/scaler.pkl
 COPY ForesightX-Pattern/artifacts/model/metadata.json /app/artifacts/model/metadata.json
 COPY ForesightX-Pattern/foresightx_pattern/__init__.py /app/foresightx_pattern/__init__.py
@@ -21,7 +21,6 @@ COPY ForesightX-Pattern/foresightx_pattern/ml/__init__.py /app/foresightx_patter
 COPY ForesightX-Pattern/foresightx_pattern/ml/data/__init__.py /app/foresightx_pattern/ml/data/__init__.py
 COPY ForesightX-Pattern/foresightx_pattern/ml/data/preprocessing.py /app/foresightx_pattern/ml/data/preprocessing.py
 COPY ForesightX-Pattern/foresightx_pattern/ml/features /app/foresightx_pattern/ml/features
-COPY ForesightX-Pattern/foresightx_pattern/ml/models /app/foresightx_pattern/ml/models
 COPY ForesightX-Pattern/foresightx_pattern/ml/utils/__init__.py /app/foresightx_pattern/ml/utils/__init__.py
 COPY ForesightX-Pattern/foresightx_pattern/ml/utils/config.py /app/foresightx_pattern/ml/utils/config.py
 COPY ForesightX-Pattern/foresightx_pattern/ml/utils/markets.py /app/foresightx_pattern/ml/utils/markets.py

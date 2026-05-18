@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
 
@@ -5,14 +7,12 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, UniqueCon
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.db.base import Base
+from foresightx_pattern.app.db.base import Base
 
 
 class ModelRegistryEntry(Base):
     __tablename__ = "model_registry_entries"
-    __table_args__ = (
-        UniqueConstraint("artifact_key", name="uq_model_registry_entries_artifact_key"),
-    )
+    __table_args__ = (UniqueConstraint("artifact_key", name="uq_model_registry_entries_artifact_key"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     symbol: Mapped[str] = mapped_column(String(32), index=True, nullable=False)

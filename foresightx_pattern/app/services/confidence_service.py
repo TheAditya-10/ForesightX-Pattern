@@ -1,25 +1,25 @@
 from __future__ import annotations
 
 import numpy as np
-import torch
 
 
 class ConfidenceService:
-    def __init__(self, samples: int = 20) -> None:
-        self.samples = samples
+    def __init__(self, interval_multiplier: float = 1.96) -> None:
+        self.interval_multiplier = interval_multiplier
 
-    def predict_with_confidence(self, model, sequence: np.ndarray, stock_id: int) -> tuple[list[float], float, list[list[float]]]:
-        tensor = torch.tensor(sequence[None, :, :], dtype=torch.float32)
-        stock_tensor = torch.tensor([stock_id], dtype=torch.long)
-        outputs: list[np.ndarray] = []
-        model.train()
-        with torch.no_grad():
-            for _ in range(self.samples):
-                outputs.append(model(tensor, stock_tensor).cpu().numpy()[0])
-        model.eval()
-        stacked = np.stack(outputs, axis=0)
-        mean = stacked.mean(axis=0)
-        std = stacked.std(axis=0)
-        intervals = np.stack([mean - 1.96 * std, mean + 1.96 * std], axis=1)
+    def predict_with_confidence(
+        self,
+        model,
+        sequence: np.ndarray,
+        stock_id: int,
+        metrics: dict | None = None,
+    ) -> tuple[list[float], float, list[list[float]]]:
+        mean = np.asarray(model.predict(sequence, stock_id), dtype=np.float32)
+        std_value = float((metrics or {}).get("rmse") or (metrics or {}).get("mae") or 0.0)
+        std = np.full_like(mean, std_value, dtype=np.float32)
+        intervals = np.stack(
+            [mean - self.interval_multiplier * std, mean + self.interval_multiplier * std],
+            axis=1,
+        )
         confidence = float(np.exp(-np.mean(std / np.maximum(np.abs(mean), 1.0))))
         return mean.tolist(), confidence, intervals.tolist()

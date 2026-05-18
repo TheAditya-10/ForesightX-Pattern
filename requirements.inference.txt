@@ -8,4 +8,4 @@ numpy==2.1.1
 scikit-learn==1.6.1
 yfinance==0.2.66
 httpx==0.28.1
-torch==2.4.1+cpu
+onnxruntime==1.20.1

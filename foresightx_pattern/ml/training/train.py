@@ -119,6 +119,7 @@ def _persist_artifacts(model, bundle, metrics: dict[str, float], settings) -> No
     model_dir = settings.model_dir
     model_dir.mkdir(parents=True, exist_ok=True)
     model_path = model_dir / "model.pt"
+    onnx_path = model_dir / "model.onnx"
     scaler_path = model_dir / "scaler.pkl"
     metadata_path = model_dir / "metadata.json"
     report_path = settings.reports_dir / "evaluation.json"
@@ -147,6 +148,8 @@ def _persist_artifacts(model, bundle, metrics: dict[str, float], settings) -> No
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     report_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     torch.save(model.state_dict(), mlflow_model_dir / "model.pt")
+    _export_onnx_model(model, onnx_path, metadata)
+    _export_onnx_model(model, mlflow_model_dir / "model.onnx", metadata)
     (mlflow_model_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     run_id = log_run_artifacts(
@@ -166,12 +169,34 @@ def _persist_artifacts(model, bundle, metrics: dict[str, float], settings) -> No
             report_path,
             scaler_path,
             metadata_path,
+            onnx_path,
             mlflow_model_dir,
         ],
     )
     version = mark_model_production(settings, metadata["model_name"], run_id, model_dir)
     metadata["model_version"] = str(version)
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+
+def _export_onnx_model(model, output_path: Path, metadata: dict) -> None:
+    model.eval()
+    sequence_length = int(metadata["sequence_length"])
+    input_dim = int(metadata["input_dim"])
+    dummy_sequence = torch.zeros(1, sequence_length, input_dim, dtype=torch.float32)
+    dummy_stock_id = torch.zeros(1, dtype=torch.long)
+    torch.onnx.export(
+        model.cpu(),
+        (dummy_sequence, dummy_stock_id),
+        output_path,
+        input_names=["sequence", "stock_id"],
+        output_names=["predictions"],
+        dynamic_axes={
+            "sequence": {0: "batch"},
+            "stock_id": {0: "batch"},
+            "predictions": {0: "batch"},
+        },
+        opset_version=17,
+    )
 
 
 if __name__ == "__main__":

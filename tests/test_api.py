@@ -41,7 +41,23 @@ def test_predict_endpoint_returns_predictions(tmp_path: Path):
     }
     (settings.model_dir / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     model = ForesightXPatternModel(input_dim=len(feature_names), num_stocks=1)
-    torch.save(model.state_dict(), settings.model_dir / "model.pt")
+    model.eval()
+    torch.onnx.export(
+        model,
+        (
+            torch.zeros(1, metadata["sequence_length"], len(feature_names), dtype=torch.float32),
+            torch.zeros(1, dtype=torch.long),
+        ),
+        settings.model_dir / "model.onnx",
+        input_names=["sequence", "stock_id"],
+        output_names=["predictions"],
+        dynamic_axes={
+            "sequence": {0: "batch"},
+            "stock_id": {0: "batch"},
+            "predictions": {0: "batch"},
+        },
+        opset_version=17,
+    )
 
     def fake_provider(ticker, _settings, timestamp):
         timestamps = []

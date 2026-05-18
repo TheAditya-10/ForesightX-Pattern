@@ -28,6 +28,7 @@ class InferenceService:
             bundle.model,
             sequence,
             stock_to_id[normalized],
+            bundle.metadata.get("metrics", {}),
         )
         return PredictionResponse(
             ticker=normalized,

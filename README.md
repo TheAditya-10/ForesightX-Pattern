@@ -12,7 +12,6 @@ foresightx_pattern/
 ├── foresightx_pattern/
 │   ├── app/                  # FastAPI inference layer
 │   └── ml/                   # Offline ML layer
-├── pipelines/               # DVC entry points
 ├── configs/                 # Runtime and training config
 ├── artifacts/               # Data, reports, trained model bundle
 ├── tests/                   # Unit and API tests
@@ -29,7 +28,7 @@ foresightx_pattern/
 - Stock adaptation: offline-trained `nn.Embedding(num_stocks, embedding_dim)`.
 - Fusion: encoder latent + stock embedding.
 - Head: dense layers -> next 3 hourly close predictions.
-- Confidence layer: MC Dropout with mean, standard deviation, prediction intervals, and scalar confidence.
+- Runtime confidence: ONNX prediction plus metric-calibrated intervals from the training evaluation report.
 
 ## Feature Contract
 
@@ -53,6 +52,12 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+For a training-only environment without API/database extras:
+
+```bash
+pip install -r requirements.train.txt
+```
+
 Run the DVC pipeline:
 
 ```bash
@@ -62,7 +67,13 @@ dvc repro
 Or run training directly:
 
 ```bash
-python pipelines/train_foundation.py
+python3 -m foresightx_pattern.ml.training.train
+```
+
+To convert an existing trained `model.pt` bundle without retraining:
+
+```bash
+python3 -m foresightx_pattern.ml.training.export_onnx --model-dir artifacts/model
 ```
 
 Artifacts written locally:
@@ -71,6 +82,7 @@ Artifacts written locally:
 - `artifacts/data/processed_market.parquet`
 - `artifacts/data/feature_store.parquet`
 - `artifacts/model/model.pt`
+- `artifacts/model/model.onnx`
 - `artifacts/model/scaler.pkl`
 - `artifacts/model/metadata.json`
 - `artifacts/reports/evaluation.json`
@@ -119,6 +131,10 @@ Inference flow:
 1. Fetch latest hourly bars for the requested ticker.
 2. Rebuild the shared feature set using only past data.
 3. Load the cached model bundle once from `artifacts/model` or `FORESIGHTX_ARTIFACTS_DIR`.
+4. Map `ticker -> stock_id`.
+5. Run prediction.
+6. Build confidence intervals from stored evaluation metrics.
+7. Return predictions, confidence, intervals, and model version.
 
 ## Deployment Scope
 
@@ -132,13 +148,9 @@ The production Docker image is intentionally inference-only. It installs `requir
 - `foresightx_pattern/app`
 - the runtime ML modules required by feature building and model execution
 - `configs/default.yaml`
-- the latest model bundle from `artifacts/model` (`model.pt`, `scaler.pkl`, `metadata.json`)
+- the latest model bundle from `artifacts/model` (`model.onnx`, `scaler.pkl`, `metadata.json`)
 
-Training code, notebooks, papers, raw/processed data, MLflow runs, and reports are excluded from the runtime image to keep EC2 resource usage low.
-4. Map `ticker -> stock_id`.
-5. Run prediction.
-6. Run MC Dropout confidence estimation.
-7. Return predictions, confidence, intervals, and model version.
+Training code, PyTorch model definitions, notebooks, papers, raw/processed data, MLflow runs, and reports are excluded from the runtime image to keep EC2 resource usage low.
 
 ## Tests
 

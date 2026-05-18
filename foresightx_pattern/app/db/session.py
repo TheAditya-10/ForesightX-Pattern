@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
@@ -9,11 +11,7 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def get_engine(database_url: str) -> AsyncEngine:
     global _engine
     if _engine is None:
-        _engine = create_async_engine(
-            database_url,
-            pool_pre_ping=True,
-            future=True,
-        )
+        _engine = create_async_engine(database_url, pool_pre_ping=True, future=True)
     return _engine
 
 

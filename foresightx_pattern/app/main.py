@@ -14,7 +14,9 @@ def create_app(settings=None, data_provider=None) -> FastAPI:
     container = get_container(settings=settings, data_provider=data_provider)
     model_loader = ModelLoader(container.settings)
     feature_service = FeatureService(container.settings, container.data_provider)
-    confidence_service = ConfidenceService(samples=container.settings.service.get("mc_dropout_samples", 20))
+    confidence_service = ConfidenceService(
+        interval_multiplier=container.settings.service.get("confidence_interval_multiplier", 1.96)
+    )
     inference_service = InferenceService(
         settings=container.settings,
         model_loader=model_loader,

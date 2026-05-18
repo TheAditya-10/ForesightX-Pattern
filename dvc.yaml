@@ -1,8 +1,7 @@
 stages:
   foundation_training:
-    cmd: python pipelines/train_foundation.py
+    cmd: python3 -m foresightx_pattern.ml.training.train
     deps:
-      - pipelines/train_foundation.py
       - foresightx_pattern
       - configs/default.yaml
     params: []

@@ -1,18 +1,40 @@
 from logging.config import fileConfig
+import os
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from src.db.base import Base
-from src.db import models  # noqa: F401
-from src.inference.config import InferenceSettings
+from foresightx_pattern.app.db.base import Base
+from foresightx_pattern.app.db import models  # noqa: F401
+
+
+def _normalize_database_url(value: str) -> str:
+    normalized = value
+    if normalized.startswith("postgresql://"):
+        normalized = normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    parsed = urlsplit(normalized)
+    if parsed.scheme != "postgresql+asyncpg":
+        return normalized
+
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    sslmode = query.pop("sslmode", None)
+    if sslmode and "ssl" not in query:
+        query["ssl"] = sslmode
+    query.pop("channel_binding", None)
+    query.pop("gssencmode", None)
+    query.pop("target_session_attrs", None)
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 config = context.config
-settings = InferenceSettings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+database_url = _normalize_database_url(
+    os.getenv("PATTERN_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/foresightx_pattern")
+)
+config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
