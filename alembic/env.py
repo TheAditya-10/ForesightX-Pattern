@@ -12,9 +12,18 @@ from foresightx_pattern.app.db import models  # noqa: F401
 
 
 def _normalize_database_url(value: str) -> str:
-    normalized = value
-    if normalized.startswith("postgresql://"):
-        normalized = normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+    normalized = value.strip()
+    if normalized.startswith(("\"", "'")) and normalized.endswith(("\"", "'")):
+        normalized = normalized[1:-1].strip()
+    lower = normalized.lower()
+    if lower.startswith("postgresql+psycopg2://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgresql+psycopg2://") :]
+    elif lower.startswith("postgresql+psycopg://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgresql+psycopg://") :]
+    elif lower.startswith("postgres://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgres://") :]
+    elif lower.startswith("postgresql://") and "asyncpg" not in lower:
+        normalized = "postgresql+asyncpg://" + normalized[len("postgresql://") :]
 
     parsed = urlsplit(normalized)
     if parsed.scheme != "postgresql+asyncpg":
